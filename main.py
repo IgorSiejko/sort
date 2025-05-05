@@ -3,145 +3,120 @@ import heapq
 import random
 import csv
 
-# Generate 5 specific arrays for testing
+# Generate 5 types of input arrays
 random_arrays = {
-    "random": [random.randint(-100, 100) for _ in range(300)],
-    "ascending": sorted([random.randint(-100, 100) for _ in range(300)]),
-    "descending": sorted([random.randint(-100, 100) for _ in range(300)], reverse=True),
-    "constant": [42 for _ in range(300)],
-    "v-shaped": sorted([random.randint(-100, 0) for _ in range(150)], reverse=True) + sorted([random.randint(0, 100) for _ in range(150)])
+    "losowe": [random.randint(-100, 100) for _ in range(300)],
+    "rosnące": sorted([random.randint(-100, 100) for _ in range(300)]),
+    "malejące": sorted([random.randint(-100, 100) for _ in range(300)], reverse=True),
+    "stałe": [42 for _ in range(300)],
+    "v_ształtny": sorted([random.randint(-100, 0) for _ in range(150)], reverse=True) + sorted([random.randint(0, 100) for _ in range(150)])
 }
 
-# Save progress list to CSV
-def save_progress_to_csv(progress_list, filename):
-    with open(filename, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Step", "Time (seconds)"])
-        writer.writerows(progress_list)
+def record_progress(progress, array_type, step, start):
+    if step <= 300 and step % 15 == 0:
+        if step not in progress:
+            progress[step] = {}
+        progress[step][array_type] = time.perf_counter() - start
 
-# Insertion Sort with step time tracking
-def insertion_sort(arr, filename):
-    array = arr.copy()
-    progress = []
+def finalize_progress(progress, array_type, start):
+    if 300 not in progress or array_type not in progress.get(300, {}):
+        record_progress(progress, array_type, 300, start)
+
+def insertion_sort(arr, array_type, progress):
+    a = arr[:]
     start = time.perf_counter()
-    for i in range(1, len(array)):
-        key = array[i]
+    for i in range(1, len(a)):
+        key = a[i]
         j = i - 1
-        while j >= 0 and array[j] > key:
-            array[j + 1] = array[j]
+        while j >= 0 and a[j] > key:
+            a[j + 1] = a[j]
             j -= 1
-        array[j + 1] = key
+        a[j + 1] = key
         if i % 15 == 0:
-            mid_time = time.perf_counter()
-            progress.append((i, mid_time - start))
-    end = time.perf_counter()
-    save_progress_to_csv(progress, filename)
-    return array, end - start
+            record_progress(progress, array_type, i, start)
+    finalize_progress(progress, array_type, start)
+    return a, time.perf_counter() - start
 
-# Selection Sort with step time tracking
-def selection_sort(arr, filename):
-    array = arr.copy()
-    progress = []
+def selection_sort(arr, array_type, progress):
+    a = arr[:]
     start = time.perf_counter()
-    n = len(array)
-    for i in range(n):
-        min_idx = i
-        for j in range(i+1, n):
-            if array[j] < array[min_idx]:
-                min_idx = j
-        array[i], array[min_idx] = array[min_idx], array[i]
+    for i in range(len(a)):
+        min_idx = min(range(i, len(a)), key=a.__getitem__)
+        a[i], a[min_idx] = a[min_idx], a[i]
         if i % 15 == 0 and i != 0:
-            mid_time = time.perf_counter()
-            progress.append((i, mid_time - start))
-    end = time.perf_counter()
-    save_progress_to_csv(progress, filename)
-    return array, end - start
+            record_progress(progress, array_type, i, start)
+    finalize_progress(progress, array_type, start)
+    return a, time.perf_counter() - start
 
-# Heap Sort with step time tracking
-def heap_sort(arr, filename):
-    array = arr.copy()
-    progress = []
+def heap_sort(arr, array_type, progress):
+    a = arr[:]
     start = time.perf_counter()
-    heapq.heapify(array)
-    sorted_array = []
-    for i in range(len(array)):
-        sorted_array.append(heapq.heappop(array))
+    heapq.heapify(a)
+    out = []
+    for i in range(len(a)):
+        out.append(heapq.heappop(a))
         if (i+1) % 15 == 0:
-            mid_time = time.perf_counter()
-            progress.append((i+1, mid_time - start))
-    end = time.perf_counter()
-    save_progress_to_csv(progress, filename)
-    return sorted_array, end - start
+            record_progress(progress, array_type, i+1, start)
+    finalize_progress(progress, array_type, start)
+    return out, time.perf_counter() - start
 
-# Merge Sort with step time tracking
-
-def merge_sort(arr, filename):
-    array = arr.copy()
-    progress = []
+def merge_sort(arr, array_type, progress):
+    a = arr[:]
     start = time.perf_counter()
-    operation_count = 0
+    steps = [i for i in range(15, 301, 15)]
+    logged = set()
+    count = 0
 
-    def _merge_sort_recursive(array):
-        nonlocal start, progress, operation_count
-        if len(array) <= 1:
-            return array
-        mid = len(array) // 2
-        left = _merge_sort_recursive(array[:mid])
-        right = _merge_sort_recursive(array[mid:])
-        merged = _merge(left, right)
-        prev_count = operation_count
-        operation_count += len(merged)
-        if operation_count // 15 > prev_count // 15:
-            mid_time = time.perf_counter()
-            progress.append((operation_count, mid_time - start))
+    def _merge_sort(a):
+        nonlocal count
+        if len(a) <= 1:
+            return a
+        mid = len(a) // 2
+        l = _merge_sort(a[:mid])
+        r = _merge_sort(a[mid:])
+        merged = merge(l, r)
+        count += len(merged)
+        for s in steps:
+            if s not in logged and count >= s:
+                record_progress(progress, array_type, s, start)
+                logged.add(s)
+            elif s > count:
+                break
         return merged
 
-    sorted_array = _merge_sort_recursive(array)
-    end = time.perf_counter()
-    save_progress_to_csv(progress, filename)
-    return sorted_array, end - start
+    sorted_arr = _merge_sort(a)
+    finalize_progress(progress, array_type, start)
+    return sorted_arr, time.perf_counter() - start
 
-# Merge helper function
-
-def _merge(left, right):
-    result = []
+def merge(l, r):
+    res = []
     i = j = 0
-    while i < len(left) and j < len(right):
-        if left[i] < right[j]:
-            result.append(left[i])
-            i += 1
-        else:
-            result.append(right[j])
-            j += 1
-    result.extend(left[i:])
-    result.extend(right[j:])
-    return result
-
-# Main test function for sorting algorithms
+    while i < len(l) and j < len(r):
+        if l[i] < r[j]: res.append(l[i]); i += 1
+        else: res.append(r[j]); j += 1
+    return res + l[i:] + r[j:]
 
 def test_all_sorts():
-    sort_functions = {
-        "Insertion Sort": insertion_sort,
-        "Selection Sort": selection_sort,
-        "Heap Sort": heap_sort,
-        "Merge Sort": merge_sort
+    sort_funcs = {
+        "insertion_sort": insertion_sort,
+        "selection_sort": selection_sort,
+        "heap_sort": heap_sort,
+        "merge_sort": merge_sort
     }
 
-    # Print arrays before sorting
-    print("Generated arrays:")
-    for name, array in random_arrays.items():
-        print(f"{name}: {array}")
+    for name, func in sort_funcs.items():
+        print(f"\n{name}:")
+        progress = {}
+        for arr_name, arr in random_arrays.items():
+            print(f"{arr_name}:")
+            _, total = func(arr, arr_name, progress)
+            print(f"total: {total:.6f}s\n")
 
-    # Run and print results of sorting
-    print("\nSorting results:")
-    for sort_name, sort_func in sort_functions.items():
-        print(f"\n{sort_name}:")
-        for array_name, array in random_arrays.items():
-            print(f"{array_name}:")
-            filename = f"{sort_name.replace(' ', '_')}_{array_name}.csv"
-            _, duration = sort_func(array, filename)
-            print(f"Total time: {duration:.6f} seconds\n")
+        steps = sorted(progress)
+        headers = ["Numer"] + list(random_arrays)
+        rows = [[s] + [f"{progress[s].get(t, ''):.6f}" if t in progress[s] else '' for t in random_arrays] for s in steps]
+        with open(f"{name}_table.csv", 'w', newline='') as f:
+            csv.writer(f).writerows([headers] + rows)
 
-# Run the tests
 if __name__ == "__main__":
     test_all_sorts()
